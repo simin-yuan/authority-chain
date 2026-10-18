@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Append-only, hash-chained ledger that gates who may change an agent's rules, against which revision."
 readme = "README.md"
 license = {text = "Apache-2.0"}
+authors = [{name = "Simin (Simon) Yuan"}]
 requires-python = ">=3.9"
 dependencies = []
 classifiers = [
@@ -15,6 +16,9 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
+
+[project.urls]
+Homepage = "https://github.com/simin-yuan/authority-chain"
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
