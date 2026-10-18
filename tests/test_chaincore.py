@@ -359,3 +359,82 @@ def test_countersign_consumes_the_one_time_token(monkeypatch):
     status = conn.execute('SELECT status FROM events WHERE event_id=?', (a2['event_id'],)).fetchone()[0]
     conn.close()
     assert status == 'pending_countersign'
+
+
+# -- One test per refusal, plus the pending_countersign state ------------------------
+
+def test_unregistered_writer_is_refused():
+    r = cc.submit_event('nobody', 'doc_a', {'v': 1}, base_revision=0, event_type='INIT')
+    assert r['ok'] is False and r['error'].startswith('UNREGISTERED_WRITER:'), r
+
+
+def test_inactive_writer_is_refused():
+    cc.register_writer('w_off', 'surface-test', 'writer', 'tier1', status='inactive')
+    r = cc.submit_event('w_off', 'doc_a', {'v': 1}, base_revision=0, event_type='INIT')
+    assert r['ok'] is False and r['error'].startswith('WRITER_INACTIVE:'), r
+
+
+@pytest.mark.parametrize('tier, doc_key', [('tier1', 'POLICY'), ('tier2', 'AGENTS')])
+def test_tier_that_does_not_cover_the_document_is_refused(tier, doc_key):
+    cc.register_writer('w_low', 'surface-test', 'writer', tier)
+    r = cc.submit_event('w_low', doc_key, {'op': 'append', 'content': 'x'}, base_revision=0)
+    assert r['ok'] is False and r['error'].startswith('PERMISSION_DENIED'), r
+    assert _state(doc_key) == (0, None, 0)
+
+
+def test_growing_past_the_length_cap_is_refused():
+    cc.LENGTH_CAPS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    cc.LENGTH_CAPS_FILE.write_text(json.dumps({'doc_a': 200}), encoding='utf-8')
+    try:
+        _init_doc(content='short')
+        before = _state('doc_a')
+        r = cc.submit_event('w_test', 'doc_a', {'op': 'append', 'content': 'y' * 500}, base_revision=1)
+        assert r['ok'] is False and r['error'] == 'DOC_LENGTH_GATE', r
+        assert _state('doc_a') == before
+    finally:
+        cc.LENGTH_CAPS_FILE.unlink()
+
+
+def test_signature_without_a_signer_store_is_refused():
+    import hashlib
+    _init_doc()
+    conn = cc.get_conn()
+    eid, pj = conn.execute('SELECT event_id, patch_json FROM events WHERE sequence=1').fetchone()
+    conn.close()
+    r = cc.submit_event('w_test', 'SIGNATURE_doc_a',
+                        {'signer_message_id': 'm1',
+                         'signs': [{'event_id': eid, 'sha256': hashlib.sha256(pj.encode('utf-8')).hexdigest()}]},
+                        event_type='SIGNATURE')
+    assert r['ok'] is False and 'SIGNER_DB_NOT_CONFIGURED' in r['error'], r
+
+
+def test_countersigning_an_event_that_is_not_pending_is_refused():
+    cc.register_writer('w_t0', 'surface-test', 'writer', 'tier0')
+    _init_doc()
+    r = cc.submit_event('w_t0', 'POLICY', {'op': 'countersign', 'target': 'ev000001'},
+                        base_revision=0, event_type='COUNTERSIGN')
+    assert r['ok'] is False and r['error'].startswith('COUNTERSIGN_TARGET_NOT_PENDING:ev000001'), r
+
+
+def test_amendment_is_pending_until_countersigned():
+    cc.register_writer('w_t0', 'surface-test', 'writer', 'tier0')
+    a = cc.submit_event('w_t0', 'POLICY', {'op': 'append', 'content': 'rule 1\n'}, base_revision=0)
+    assert a['ok'] and a['status'] == 'pending_countersign' and a['revision'] == 0, a
+    # On the chain, but not state and not rendered.
+    assert cc.get_canonical('POLICY') is None
+    assert 'POLICY' not in cc.materialize()
+    c = cc.submit_event('w_t0', 'POLICY', {'op': 'countersign', 'target': a['event_id']},
+                        base_revision=0, event_type='COUNTERSIGN')
+    assert c['ok'] and c['countersigned'] == a['event_id'] and c['revision'] == 1, c
+    assert cc.get_canonical('POLICY')['value'] == 'rule 1\n'
+    conn = cc.get_conn()
+    status = conn.execute('SELECT status FROM events WHERE event_id=?', (a['event_id'],)).fetchone()[0]
+    conn.close()
+    assert status == 'countersigned'
+    try:
+        assert cc.materialize()['POLICY']['revision'] == 1
+    finally:
+        policy = Path(cc.DOC_TO_PATH['POLICY'])
+        if policy.exists():
+            os.chmod(policy, 0o666)
+            policy.unlink()
