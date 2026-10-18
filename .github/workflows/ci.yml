@@ -27,10 +27,23 @@ jobs:
         env:
           CHAIN_DATA_ROOT: ${{ runner.temp }}/data
           CHAIN_HOME: ${{ runner.temp }}/docs
-          AGENT_SESSION_ID: ci
         run: |
+          export AGENT_SESSION_ID=demo
           python chaincore.py bootstrap
           python chaincore.py register w1 host1 writer 1
           python chaincore.py submit w1 doc_a '{"v": 1}' --type INIT --base 0
           python chaincore.py get doc_a
           python chaincore.py verify
+      - name: README quick start, verbatim, in a clean environment
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/quickstart"
+          mkdir -p "$work/home"
+          # A fresh copy of the tree, so the default data root ($work/src/data) starts empty.
+          git archive --format=tar HEAD | (mkdir -p "$work/src" && tar -x -C "$work/src")
+          awk '/^## Quick start/{q=1} q&&/^```bash$/{f=1;next} f&&/^```$/{exit} f' README.md > "$work/quickstart.sh"
+          test -s "$work/quickstart.sh"
+          cat "$work/quickstart.sh"
+          cd "$work/src"
+          env -i PATH="$PATH" HOME="$work/home" bash -e "$work/quickstart.sh" | tee "$work/out.txt"
+          tail -n 1 "$work/out.txt" | python -c 'import json, sys; s = json.load(sys.stdin)["chain_status"]; print("chain_status", s); sys.exit(s != "INTACT")'

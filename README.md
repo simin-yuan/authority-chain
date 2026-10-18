@@ -47,8 +47,12 @@ Small on purpose: one package, the Python standard library and SQLite, no servic
 
 ## Quick start
 
+In real use the agent runtime sets `AGENT_SESSION_ID`; the model never chooses it. For a
+first run, set it by hand:
+
 ```bash
 pip install -e .                      # no runtime dependencies; pip install -e ".[test]" for pytest
+export AGENT_SESSION_ID=demo          # PowerShell: $env:AGENT_SESSION_ID = "demo"
 authority-chain bootstrap             # import the documents named in config
 authority-chain register w1 host1 writer 1
 authority-chain get doc_a             # prints the current revision (null before the first write)
