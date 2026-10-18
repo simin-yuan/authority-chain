@@ -1,0 +1,2 @@
+# Runtime: Python standard library only.
+pytest>=7

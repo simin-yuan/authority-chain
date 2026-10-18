@@ -1,0 +1,26 @@
+{
+  "_comment": "Copy to chaincore.json and edit. Every key is optional; omitted keys fall back to the defaults in config.py.",
+
+  "data_root": "/var/lib/authority-chain",
+  "home": "/var/lib/authority-chain/docs",
+
+  "documents": {
+    "AGENTS": "AGENTS.md",
+    "RULES": "RULES.md",
+    "POLICY": "POLICY.md"
+  },
+  "tier0": ["POLICY"],
+  "tier1": ["AGENTS", "RULES"],
+  "tier2": [],
+
+  "length_caps": {
+    "POLICY": 8000,
+    "AGENTS": 20000
+  },
+
+  "agent_env_vars": ["AGENT_SESSION_ID", "AGENT_CRON_SESSION", "AGENT_PARENT_START_MARKER"],
+
+  "signer_db": null,
+  "policy_module": null,
+  "post_write_hook": null
+}
