@@ -66,6 +66,7 @@ From a checkout without installing, `python chaincore.py <command>` is the same 
 Submission without `--base` is refused (`MISSING_TICKET`). Submitting a stale `--base` is
 refused and queued (`REJECT_STALE_WRITE`). Both refusals are the feature. Every refusal prints
 `{"ok": false, ...}` and exits with a non-zero status, so a shell or a scheduler sees it too.
+Every refusal code is listed in [`docs/errors.md`](docs/errors.md).
 
 Ticketed writes need a session id that the runtime injects through the environment
 (`AGENT_SESSION_ID`, `AGENT_CRON_SESSION` or `AGENT_PARENT_START_MARKER` by default; the names
