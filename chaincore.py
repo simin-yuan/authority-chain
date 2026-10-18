@@ -764,6 +764,14 @@ def submit_event(writer_id, doc_key, patch, base_revision=None, event_type='PATC
                             'detail': f'{_r["event_id"]} was already superseded by {_prior}; it cannot be superseded twice. '
                                       f'Supersede the superseder instead - two writers replacing the same event '
                                       f'is how two contradictory decisions end up coexisting.'}
+    # 3.11 A canonical write that changes nothing must not advance the revision.
+    #      An unknown op used to fall through apply_patch unchanged and still bump the
+    #      revision, so a malformed patch looked exactly like an accepted edit.
+    if event_type in _CANONICAL_EVENT_TYPES:
+        _noop = _no_change_refusal(conn, doc_key, patch, event_type)
+        if _noop:
+            conn.close()
+            return _noop
     # 4.0 Length gate, evaluated before the event is stored: a rejection leaves no event,
     #     same shape as a missing ticket or a stale write (no event, no queue entry, log only).
     #     Protected docs are skipped here: their patch applies at COUNTERSIGN, which checks again.
@@ -912,6 +920,10 @@ def submit_event(writer_id, doc_key, patch, base_revision=None, event_type='PATC
         if _gate:
             conn.close()
             return _gate
+        _noop = _no_change_refusal(conn, t_doc, t_patch, t_type)
+        if _noop:
+            conn.close()
+            return _noop
         # Store the COUNTERSIGN event first: the chain must contain the signing record
         try:
             conn.execute('INSERT INTO events (event_id, sequence, ts, writer_id, surface_id, session_id, base_revision, event_type, doc_key, patch_json, evidence_refs, caused_by, status, reject_reason, prev_hash, hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
@@ -977,6 +989,31 @@ def submit_event(writer_id, doc_key, patch, base_revision=None, event_type='PATC
     if _pw:
         _out['post_write'] = _pw          # chain first, files second: status is returned, not printed
     return _out
+
+_PATCH_OPS = {'full', 'append', 'insert_after', 'replace_section', 'delete_section', 'replace_text'}
+
+
+def _no_change_refusal(conn, doc_key, patch, event_type):
+    """None = the patch changes canonical state; dict = refusal (state and revision untouched).
+
+    INIT carries whole content and ignores op, so only non-INIT writes need a known op.
+    """
+    if event_type != 'INIT':
+        _op = patch.get('op') if isinstance(patch, dict) else None
+        if _op not in _PATCH_OPS:
+            return {'ok': False, 'error': 'UNKNOWN_PATCH_OP',
+                    'detail': f'patch op {_op!r} is not one of {sorted(_PATCH_OPS)}; nothing written.'}
+    row = conn.execute('SELECT value_json FROM canonical_state WHERE doc_key=?', (doc_key,)).fetchone()
+    if row is None:
+        return None
+    new_value = apply_patch(row[0], patch, event_type)
+    stored = new_value if isinstance(new_value, str) else json.dumps(new_value, ensure_ascii=False)
+    if stored == row[0]:
+        return {'ok': False, 'error': 'NO_CHANGE',
+                'detail': f'the patch leaves {doc_key} exactly as it is (for example a missing marker, '
+                          f'or a find text that does not occur exactly once); revision not advanced.'}
+    return None
+
 
 def apply_patch(old_json, patch, event_type):
     """Patch semantics:

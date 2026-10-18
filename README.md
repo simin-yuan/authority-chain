@@ -32,7 +32,7 @@ python chaincore.py bootstrap         # import the documents named in config
 python chaincore.py register w1 host1 writer 1
 python chaincore.py get doc_a         # prints the current revision
 python chaincore.py submit w1 doc_a '{"v": 1}' --type INIT --base 0
-python chaincore.py submit w1 doc_a '{"v": 2}' --base 1
+python chaincore.py submit w1 doc_a '{"op": "append", "content": "more"}' --base 1
 python chaincore.py verify            # chain_status=INTACT, latest_hash=...
 ```
 
