@@ -216,3 +216,55 @@ def test_normal_append_is_still_accepted():
     assert r.get('ok'), r
     rev, value, _ = _state('doc_a')
     assert rev == 2 and value == '# A\n\n## One\nx\n\nmore'
+
+
+# -- Bootstrap stores text the way every other write path does ------------------------
+
+@pytest.fixture
+def agents_doc():
+    """A source file for the AGENTS document, removed afterwards (materialize locks it)."""
+    path = Path(cc.DOC_TO_PATH['AGENTS'])
+
+    def _write(text):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'w', encoding='utf-8', newline='') as fh:
+            fh.write(text)
+        return path
+
+    yield _write
+    if path.exists():
+        os.chmod(path, 0o666)
+        path.unlink()
+
+
+def _tier1_writer():
+    cc.register_writer('w_t1', 'surface-test', 'writer', 'tier1')
+
+
+def test_bootstrapped_text_renders_without_encoding_artifacts(agents_doc):
+    agents_doc('# A\n')
+    assert cc.bootstrap()['imported'] == ['AGENTS']
+    _tier1_writer()
+    r = cc.submit_event('w_t1', 'AGENTS', {'op': 'append', 'content': '\nrule B'}, base_revision=1)
+    assert r.get('ok'), r
+    cc.materialize()
+    with open(cc.projection_path('AGENTS'), encoding='utf-8', newline='') as fh:
+        rendered = fh.read()
+    header, body = rendered.split('\n', 1)
+    assert header.startswith('<!-- GENERATED_FROM_CONTINUITY_CORE REVISION=2 ')
+    assert body == '# A\n\nrule B'
+
+
+def test_replace_section_keeps_the_sections_around_it(agents_doc):
+    """Guards an accepted write that silently dropped every section after the marker."""
+    agents_doc('## One\nx\n\n## Two\ny\n\n## Three\nz\n')
+    cc.bootstrap()
+    _tier1_writer()
+    r = cc.submit_event('w_t1', 'AGENTS',
+                        {'op': 'replace_section', 'marker': '## Two', 'content': 'new two\n'},
+                        base_revision=1)
+    assert r.get('ok'), r
+    value = cc.get_canonical('AGENTS')['value']
+    assert value.startswith('## One\nx\n\n## Two\n'), value
+    assert value.endswith('\n## Three\nz\n'), value
+    assert 'new two' in value and '\ny\n' not in value
