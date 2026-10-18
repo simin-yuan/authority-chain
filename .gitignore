@@ -1,0 +1,10 @@
+# runtime state: never commit a ledger
+data/
+chaincore.json
+*.db
+*.db-wal
+*.db-shm
+projections/
+__pycache__/
+*.pyc
+.pytest_cache/
