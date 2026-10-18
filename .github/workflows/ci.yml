@@ -1,0 +1,36 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: python -m pip install -e ".[test]"
+      - name: Test
+        run: pytest -q
+      - name: Single-file entry point on an empty data root
+        env:
+          CHAIN_DATA_ROOT: ${{ runner.temp }}/data
+          CHAIN_HOME: ${{ runner.temp }}/docs
+          AGENT_SESSION_ID: ci
+        run: |
+          python chaincore.py bootstrap
+          python chaincore.py register w1 host1 writer 1
+          python chaincore.py submit w1 doc_a '{"v": 1}' --type INIT --base 0
+          python chaincore.py get doc_a
+          python chaincore.py verify
