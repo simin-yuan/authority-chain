@@ -1116,8 +1116,10 @@ def bootstrap(force=False):
                      (event_id, seq, ts, 'continuity_bootstrap', 'bootstrap', None, 0,
                       'INIT', doc_key, json.dumps({'op': 'full', 'content': content}, ensure_ascii=False),
                       f'BOOTSTRAP:{path}', None, 'accepted', None, prev_hash, h))
+        # Raw text, exactly like the other write paths: a JSON-encoded string here turned
+        # every newline into a literal "\n", so section ops could not find "\n## " any more.
         conn.execute('INSERT OR REPLACE INTO canonical_state VALUES (?,?,?,?,?)',
-                     (doc_key, 1, json.dumps(content, ensure_ascii=False), event_id, ts))
+                     (doc_key, 1, content, event_id, ts))
         imported.append(doc_key)
     conn.commit(); conn.close()
     return {'imported': imported}
