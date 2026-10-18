@@ -73,7 +73,7 @@ authority chain records what the agent was allowed to change.
 Hermes exposes a plugin hook API. Resolve paths through the runtime rather than hardcoding them:
 
 ```python
-from hermes_cli.paths import get_hermes_home     # authoritative home for the running install
+from hermes_constants import get_hermes_home     # authoritative home for the running install
 home = get_hermes_home()
 ```
 
@@ -96,6 +96,11 @@ event's known-unverifiable gap, and determinism (identical input → identical h
 Used in daily operation. Behavior is frozen for the flows covered by the tests; see
 `docs/why.md` for the reasoning behind each guard, including the two places where the design
 accepts a limitation instead of hiding it.
+
+## Related reading
+
+*History Is Not Memory* — why a persistent agent's state is not the same thing as its history:
+[10.6084/m9.figshare.34155195](https://doi.org/10.6084/m9.figshare.34155195).
 
 ## License
 
