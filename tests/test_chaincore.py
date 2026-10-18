@@ -279,3 +279,21 @@ def test_missing_session_error_names_the_configured_variables(monkeypatch):
     assert r['error'] == 'MISSING_RUNTIME_SESSION_ID'
     for name in config.AGENT_ENV_VARS:
         assert name in r['detail'], (name, r['detail'])
+
+
+def test_cli_exit_code_follows_ok():
+    """A refusal must be visible to a shell or a scheduler, not only in the printed JSON."""
+    import subprocess
+    script = str(Path(__file__).resolve().parents[1] / 'chaincore.py')
+
+    def run(*args):
+        return subprocess.run([sys.executable, script, *args], capture_output=True, text=True,
+                              env=dict(os.environ), timeout=60)
+
+    assert run('register', 'w_cli', 'surface-cli', 'writer', '1').returncode == 0
+    refused = run('submit', 'w_cli', 'doc_cli', '{"v": 1}', '--type', 'INIT')
+    assert json.loads(refused.stdout)['error'] == 'MISSING_TICKET'
+    assert refused.returncode != 0
+    accepted = run('submit', 'w_cli', 'doc_cli', '{"v": 1}', '--type', 'INIT', '--base', '0')
+    assert json.loads(accepted.stdout)['ok'] is True
+    assert accepted.returncode == 0

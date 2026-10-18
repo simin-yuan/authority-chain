@@ -1918,36 +1918,41 @@ def main():
     sub.add_parser('lock')
     sub.add_parser('audit')
     args = ap.parse_args()
+    indent = None
     if args.cmd == 'bootstrap':
-        print(json.dumps(bootstrap(), ensure_ascii=False))
+        out = bootstrap()
     elif args.cmd == 'register':
-        print(json.dumps(register_writer(args.writer_id, args.surface, args.role, args.tier), ensure_ascii=False))
+        out = register_writer(args.writer_id, args.surface, args.role, args.tier)
     elif args.cmd == 'submit':
         try: patch = json.loads(args.patch)
         except: patch = {'op': 'append', 'content': args.patch}
         _mt = _manual_tty_attestation() if getattr(args, 'manual_tty', False) else None
-        print(json.dumps(submit_event(args.writer_id, args.doc, patch, base_revision=args.base,
-                                      event_type=args.type, evidence=args.evidence, caused_by=args.caused,
-                                      surface_id=args.surface, session_id=args.session, force=args.force,
-                                      force_reason=getattr(args, 'force_reason', ''),
-                                      manual_tty=_mt, approval_prompt=_prompt_approval_token),
-                         ensure_ascii=False))
+        out = submit_event(args.writer_id, args.doc, patch, base_revision=args.base,
+                           event_type=args.type, evidence=args.evidence, caused_by=args.caused,
+                           surface_id=args.surface, session_id=args.session, force=args.force,
+                           force_reason=getattr(args, 'force_reason', ''),
+                           manual_tty=_mt, approval_prompt=_prompt_approval_token)
     elif args.cmd == 'get':
-        print(json.dumps(get_canonical(args.doc), ensure_ascii=False))
+        out = get_canonical(args.doc)
     elif args.cmd == 'delta':
-        print(json.dumps(get_surface_delta(args.surface), ensure_ascii=False, indent=1))
+        out = get_surface_delta(args.surface); indent = 1
     elif args.cmd == 'advance':
-        print(json.dumps(advance_cursor(args.surface, args.to), ensure_ascii=False))
+        out = advance_cursor(args.surface, args.to)
     elif args.cmd == 'materialize':
-        print(json.dumps(materialize(), ensure_ascii=False))
+        out = materialize()
     elif args.cmd == 'verify':
-        print(json.dumps(verify_chain(), ensure_ascii=False))
+        out = verify_chain()
     elif args.cmd == 'lock':
-        print(json.dumps(lock_all(), ensure_ascii=False))
+        out = lock_all()
     elif args.cmd == 'audit':
-        print(json.dumps(audit(), ensure_ascii=False, indent=1))
+        out = audit(); indent = 1
     else:
         ap.print_help()
+        return 0
+    print(json.dumps(out, ensure_ascii=False, indent=indent))
+    # Every refusal is {"ok": false, ...}; a caller that only checks the exit status
+    # (a shell, a scheduler) must see it as a failure too.
+    return 1 if isinstance(out, dict) and out.get('ok') is False else 0
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
