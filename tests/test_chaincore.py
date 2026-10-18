@@ -57,7 +57,7 @@ def test_accepted_write_advances_revision_and_verifies():
     _writer()
     r1 = cc.submit_event('w_test', 'doc_a', {'v': 1}, base_revision=0, event_type='INIT')
     assert r1.get('ok'), r1
-    r2 = cc.submit_event('w_test', 'doc_a', {'v': 2}, base_revision=1)
+    r2 = cc.submit_event('w_test', 'doc_a', {'op': 'append', 'content': 'v2'}, base_revision=1)
     assert r2.get('ok'), r2
     v = cc.verify_chain()
     assert v['chain_intact'] is True
@@ -89,7 +89,7 @@ def test_edited_content_is_detected_by_the_chain():
     """
     _writer()
     cc.submit_event('w_test', 'doc_a', {'v': 1}, base_revision=0, event_type='INIT')
-    cc.submit_event('w_test', 'doc_a', {'v': 2}, base_revision=1)
+    cc.submit_event('w_test', 'doc_a', {'op': 'append', 'content': 'v2'}, base_revision=1)
     conn = cc.get_conn()
     try:
         conn.execute("UPDATE events SET patch_json='{\"v\": 999}' WHERE sequence=2")
@@ -157,3 +157,62 @@ def test_same_input_produces_the_same_hash():
     ).fetchone()
     conn.close()
     assert cc.hash_event('w_test', 'doc_a', ts, seq, pj, prev or '') == h
+
+
+# -- A canonical write that changes nothing must not advance the revision -------------
+
+def _state(doc_key):
+    conn = cc.get_conn()
+    try:
+        rev = cc.get_current_revision(conn, doc_key)
+        row = conn.execute('SELECT value_json FROM canonical_state WHERE doc_key=?',
+                           (doc_key,)).fetchone()
+        n_events = conn.execute('SELECT COUNT(*) FROM events').fetchone()[0]
+    finally:
+        conn.close()
+    return rev, (row[0] if row else None), n_events
+
+
+def _init_doc(doc_key='doc_a', content='# A\n\n## One\nx\n'):
+    _writer()
+    r = cc.submit_event('w_test', doc_key, {'op': 'full', 'content': content},
+                        base_revision=0, event_type='INIT')
+    assert r.get('ok'), r
+
+
+@pytest.mark.parametrize('patch', [
+    {'ops': [{'op': 'append', 'content': 'x'}]},      # missing op
+    {'op': 'nonsense', 'content': 'x'},                 # unrecognized op
+])
+def test_patch_without_a_known_op_is_refused(patch):
+    _init_doc()
+    before = _state('doc_a')
+    r = cc.submit_event('w_test', 'doc_a', patch, base_revision=1)
+    assert r['ok'] is False and r['error'] == 'UNKNOWN_PATCH_OP', r
+    assert _state('doc_a') == before
+
+
+def test_delete_section_with_absent_marker_is_refused():
+    _init_doc()
+    before = _state('doc_a')
+    r = cc.submit_event('w_test', 'doc_a', {'op': 'delete_section', 'marker': '## Missing'},
+                        base_revision=1)
+    assert r['ok'] is False and r['error'] == 'NO_CHANGE', r
+    assert _state('doc_a') == before
+
+
+def test_replace_text_without_a_single_match_is_refused():
+    _init_doc()
+    before = _state('doc_a')
+    r = cc.submit_event('w_test', 'doc_a', {'op': 'replace_text', 'find': 'absent', 'replace': 'y'},
+                        base_revision=1)
+    assert r['ok'] is False and r['error'] == 'NO_CHANGE', r
+    assert _state('doc_a') == before
+
+
+def test_normal_append_is_still_accepted():
+    _init_doc()
+    r = cc.submit_event('w_test', 'doc_a', {'op': 'append', 'content': '\nmore'}, base_revision=1)
+    assert r.get('ok'), r
+    rev, value, _ = _state('doc_a')
+    assert rev == 2 and value == '# A\n\n## One\nx\n\nmore'
