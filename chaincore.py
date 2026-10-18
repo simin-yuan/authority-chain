@@ -944,6 +944,13 @@ def submit_event(writer_id, doc_key, patch, base_revision=None, event_type='PATC
         conn.execute("UPDATE events SET status='countersigned', countersigned_by=? WHERE event_id=?", (event_id, target))
         if force:
             _log_force(conn, writer_id, doc_key, force_reason, event_id, seq)
+        # Burn the one-time code in this same transaction, exactly as the normal write path
+        # does: a code that is validated but never consumed can sign again.
+        if _approval_sha:
+            _rc = _consume_approval_token(conn, _approval_sha, doc_key, patch.get('op'), patch_json, event_id)
+            if not _rc:
+                conn.rollback(); conn.close()
+                return {'ok': False, 'error': 'APPROVAL_TOKEN_RACE: the code was consumed mid-write; nothing was stored.'}
         conn.commit(); conn.close()
         _pw = _auto_post_write(event_id, _cls, _gate_err, force)
         _out = {'ok': True, 'event_id': event_id, 'sequence': seq, 'doc_key': doc_key,

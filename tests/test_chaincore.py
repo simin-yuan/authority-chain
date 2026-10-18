@@ -297,3 +297,65 @@ def test_cli_exit_code_follows_ok():
     accepted = run('submit', 'w_cli', 'doc_cli', '{"v": 1}', '--type', 'INIT', '--base', '0')
     assert json.loads(accepted.stdout)['ok'] is True
     assert accepted.returncode == 0
+
+
+class _TTY:
+    """Wraps a stream and reports it as a terminal (the manual channel requires one)."""
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def isatty(self):
+        return True
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+
+def _register_token(token):
+    import hashlib
+    conn = cc.get_conn()
+    try:
+        conn.execute('INSERT INTO approval_tokens (token_sha256, created_at, created_by, label) '
+                     'VALUES (?,?,?,?)',
+                     (hashlib.sha256(token.encode('utf-8')).hexdigest(), cc.now_iso(), 'test', 'test'))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_countersign_consumes_the_one_time_token(monkeypatch):
+    import config
+    cc.register_writer('w_t0', 'surface-test', 'writer', 'tier0')
+    a1 = cc.submit_event('w_t0', 'POLICY', {'op': 'append', 'content': 'rule 1\n'}, base_revision=0)
+    a2 = cc.submit_event('w_t0', 'POLICY', {'op': 'append', 'content': 'rule 2\n'}, base_revision=0)
+    assert a1['status'] == a2['status'] == 'pending_countersign', (a1, a2)
+    _register_token('one-time-code')
+
+    # Manual channel: no agent runtime variables, a real terminal, a one-time code.
+    for name in config.AGENT_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(sys, 'stdin', _TTY(sys.stdin))
+    monkeypatch.setattr(sys, 'stdout', _TTY(sys.stdout))
+
+    def countersign(target, base):
+        return cc.submit_event('w_t0', 'POLICY', {'op': 'countersign', 'target': target},
+                               base_revision=base, event_type='COUNTERSIGN',
+                               manual_tty='manual_tty:test:1:now', approval_token='one-time-code')
+
+    c1 = countersign(a1['event_id'], 0)
+    assert c1.get('ok'), c1
+    conn = cc.get_conn()
+    consumed_at, consumed_event = conn.execute(
+        'SELECT consumed_at, consumed_event FROM approval_tokens').fetchone()
+    conn.close()
+    assert consumed_at and consumed_event == c1['event_id']
+
+    before = _state('POLICY')
+    c2 = countersign(a2['event_id'], 1)
+    assert c2['ok'] is False and c2['error'].endswith('APPROVAL_TOKEN_USED'), c2
+    assert _state('POLICY') == before
+    conn = cc.get_conn()
+    status = conn.execute('SELECT status FROM events WHERE event_id=?', (a2['event_id'],)).fetchone()[0]
+    conn.close()
+    assert status == 'pending_countersign'
