@@ -670,7 +670,7 @@ def submit_event(writer_id, doc_key, patch, base_revision=None, event_type='PATC
             conn.close()
             return {'ok': False, 'error': 'MISSING_RUNTIME_SESSION_ID',
                     'detail': 'a ticketed event needs a runtime-injected session id: '
-                              'CHAIN_SESSION_ID / CHAIN_CRON_SESSION / CHAIN_PARENT_START_MARKER are all empty. '
+                              f'{" / ".join(AGENT_ENV_VARS)} are all empty. '
                               'A caller-supplied session id is refused: the model must not mint one.'
                               '(a human terminal must use --manual-tty with a one-time code.)'}
         else:

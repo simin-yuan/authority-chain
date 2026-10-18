@@ -268,3 +268,14 @@ def test_replace_section_keeps_the_sections_around_it(agents_doc):
     assert value.startswith('## One\nx\n\n## Two\n'), value
     assert value.endswith('\n## Three\nz\n'), value
     assert 'new two' in value and '\ny\n' not in value
+
+
+def test_missing_session_error_names_the_configured_variables(monkeypatch):
+    import config
+    for name in config.AGENT_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    _writer()
+    r = cc.submit_event('w_test', 'doc_a', {'v': 1}, base_revision=0, event_type='INIT')
+    assert r['error'] == 'MISSING_RUNTIME_SESSION_ID'
+    for name in config.AGENT_ENV_VARS:
+        assert name in r['detail'], (name, r['detail'])
