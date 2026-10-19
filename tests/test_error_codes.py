@@ -520,7 +520,9 @@ def test_a_source_document_that_disagrees_with_canonical_is_reported():
     assert r.get('ok'), r
     src = Path(cc.DOC_TO_PATH['AGENTS'])
     src.parent.mkdir(parents=True, exist_ok=True)
-    src.write_text('something else\n', encoding='utf-8', newline='')
+    # Path.write_text(newline=) is 3.10+; CI still runs 3.9.
+    with open(src, 'w', encoding='utf-8', newline='') as fh:
+        fh.write('something else\n')
     try:
         v = cc.verify_projections()
         assert [m['reason'] for m in v['mismatches']] == ['CONTENT_MISMATCH'], v
