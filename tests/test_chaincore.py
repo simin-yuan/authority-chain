@@ -34,10 +34,24 @@ def fresh_root():
 
 
 def _clean():
-    if cc.DB_PATH.exists():
+    # Delete the database *and* its write-ahead log. Keeping the main file and dropping the
+    # log (or the other way round) is not a fresh root: a surviving -wal is replayed into the
+    # next connection, so the next test opens a ledger it never wrote and sees revisions from
+    # the previous one.
+    for suffix in ('', '-wal', '-shm'):
         try:
-            cc.DB_PATH.unlink()
-        except PermissionError:        # a handle may still be closing on Windows
+            Path(str(cc.DB_PATH) + suffix).unlink()
+        except OSError:            # a handle may still be closing on Windows
+            pass
+    if cc.DB_PATH.exists():
+        # The unlink lost the race, so empty the tables instead of trusting the delete.
+        try:
+            conn = cc.get_conn()
+            for (table,) in conn.execute("SELECT name FROM sqlite_master WHERE type='table'"):
+                conn.execute('DELETE FROM "%s"' % table)
+            conn.commit()
+            conn.close()
+        except Exception:
             pass
     if cc.PROJECTION_DIR.exists():
         shutil.rmtree(cc.PROJECTION_DIR, ignore_errors=True)
