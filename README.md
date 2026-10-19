@@ -78,6 +78,14 @@ should point `CHAIN_CONFIG` at it (or set `CHAIN_DATA_ROOT`). Length caps are re
 `length_caps.json` in the ledger's data directory. Nothing machine-specific is compiled into the
 code.
 
+The data directory follows the install. From a checkout — the directory holding the package also
+holds `pyproject.toml`, which is what an editable install points at — the ledger stays in `data/`
+inside that checkout, git-ignored and easy to delete. Any other install writes to your own data
+directory, because site-packages is lost on uninstall and replaced on upgrade:
+`%LOCALAPPDATA%\authority-chain` on Windows, `$XDG_DATA_HOME/authority-chain` or
+`~/.local/share/authority-chain` elsewhere. Both are defaults only: a `data_root` in the config
+file outranks `CHAIN_DATA_ROOT`, which outranks both.
+
 ## Layout
 
 | Module | Contents |
