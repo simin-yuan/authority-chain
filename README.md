@@ -124,8 +124,10 @@ pytest -q
 
 Seven scenarios: missing ticket, accepted write advancing the revision, stale write refused and
 queued, content edit detected by the chain, broken link reported rather than hidden, the genesis
-event's known-unverifiable gap, and determinism (identical input → identical hash). Every other
-refusal has its own test, as does the `pending_countersign` state.
+event's known-unverifiable gap, and determinism (identical input → identical hash). Every refusal
+code in `docs/errors.md` — all 57 of them — is exercised by a test, as is the `pending_countersign`
+state. `tests/test_error_coverage.py` parses that document and fails if a code is neither exercised
+by a test nor listed with a reason.
 
 ## Status
 

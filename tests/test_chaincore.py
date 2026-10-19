@@ -1,60 +1,16 @@
-"""Tests for chaincore. Run with: python -m pytest -q
+"""Tests for the ledger core. Run with: python -m pytest -q
 
-Isolation: every test gets its own data root, so nothing here can read or write a real
-deployment's state. The environment is set before chaincore is imported because the
-module resolves its paths at import time.
+Isolation: conftest.py hands the whole suite one throwaway data root and an empty ledger
+before every test, so nothing here can read or write a real deployment's state.
 """
 import json
 import os
-import shutil
 import sys
-import tempfile
 from pathlib import Path
 
-_ROOT = Path(tempfile.mkdtemp(prefix='chaincore-test-'))
-os.environ['CHAIN_DATA_ROOT'] = str(_ROOT / 'data')
-os.environ['CHAIN_HOME'] = str(_ROOT / 'docs')
-os.environ.pop('CHAIN_CONFIG', None)
-# The runtime, not the caller, owns identity: the writer must run under a session id
-# that the environment supplies. A missing one is a hard refusal (see MISSING_RUNTIME_SESSION_ID).
-for _v in ('AGENT_CRON_SESSION', 'AGENT_PARENT_START_MARKER'):
-    os.environ.pop(_v, None)
-os.environ['AGENT_SESSION_ID'] = 'test-session'
+import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import chaincore as cc          # noqa: E402  (must follow the environment setup)
-import pytest                   # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def fresh_root():
-    _clean()
-    yield
-    _clean()
-
-
-def _clean():
-    # Delete the database *and* its write-ahead log. Keeping the main file and dropping the
-    # log (or the other way round) is not a fresh root: a surviving -wal is replayed into the
-    # next connection, so the next test opens a ledger it never wrote and sees revisions from
-    # the previous one.
-    for suffix in ('', '-wal', '-shm'):
-        try:
-            Path(str(cc.DB_PATH) + suffix).unlink()
-        except OSError:            # a handle may still be closing on Windows
-            pass
-    if cc.DB_PATH.exists():
-        # The unlink lost the race, so empty the tables instead of trusting the delete.
-        try:
-            conn = cc.get_conn()
-            for (table,) in conn.execute("SELECT name FROM sqlite_master WHERE type='table'"):
-                conn.execute('DELETE FROM "%s"' % table)
-            conn.commit()
-            conn.close()
-        except Exception:
-            pass
-    if cc.PROJECTION_DIR.exists():
-        shutil.rmtree(cc.PROJECTION_DIR, ignore_errors=True)
+import chaincore as cc
 
 
 def _writer():
