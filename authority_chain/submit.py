@@ -38,8 +38,8 @@ from .verify import _find_prior_superseder
 # A doc_key without an entry is uncapped: one global number would freeze live documents.
 # force does not bypass this gate: force is a concurrency escape hatch, this is content
 #   only; non-growing writes always pass, so a repair path always exists.
-LENGTH_CAPS_FILE = RESEARCH_ROOT / 'continuity' / 'length_caps.json'
-LENGTH_GATE_LOG = RESEARCH_ROOT / 'continuity' / 'length_gate.log'
+LENGTH_CAPS_FILE = RESEARCH_ROOT / 'authority-chain' / 'length_caps.json'
+LENGTH_GATE_LOG = RESEARCH_ROOT / 'authority-chain' / 'length_gate.log'
 
 
 def length_caps():
@@ -730,9 +730,9 @@ def bootstrap(force=False):
         prev = conn.execute('SELECT hash FROM events WHERE sequence=?', (seq - 1,)).fetchone()
         prev_hash = prev[0] if prev else None
         patch_json = json.dumps({'op': 'full', 'content': content}, ensure_ascii=False)
-        h = hash_event('continuity_bootstrap', doc_key, ts, seq, patch_json, prev_hash or '')
+        h = hash_event('authority_chain_bootstrap', doc_key, ts, seq, patch_json, prev_hash or '')
         conn.execute('INSERT INTO events (event_id, sequence, ts, writer_id, surface_id, session_id, base_revision, event_type, doc_key, patch_json, evidence_refs, caused_by, status, reject_reason, prev_hash, hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                     (event_id, seq, ts, 'continuity_bootstrap', 'bootstrap', None, 0,
+                     (event_id, seq, ts, 'authority_chain_bootstrap', 'bootstrap', None, 0,
                       'INIT', doc_key, json.dumps({'op': 'full', 'content': content}, ensure_ascii=False),
                       f'BOOTSTRAP:{path}', None, 'accepted', None, prev_hash, h))
         # Raw text, exactly like the other write paths: a JSON-encoded string here turned

@@ -9,7 +9,12 @@ from .config import RESEARCH_ROOT, DOC_TO_PATH
 from .schema import DB_PATH, get_conn, init_schema, now_iso
 
 
-PROJECTION_DIR = RESEARCH_ROOT / 'continuity' / 'projections'
+PROJECTION_DIR = RESEARCH_ROOT / 'authority-chain' / 'projections'
+
+# The single marker for a generated file. Readers (and the drift check) match on it, so
+# it lives in one place: a second literal spelling of the header is how a checker silently
+# stops matching the renderer.
+HEADER_MARKER = 'GENERATED_FROM_AUTHORITY_CHAIN'
 
 
 def render_projection(rev, updated, value):
@@ -24,8 +29,8 @@ def render_projection(rev, updated, value):
         body = value
     if not isinstance(body, str):
         body = json.dumps(body, ensure_ascii=False, indent=2)
-    header = (f'<!-- GENERATED_FROM_CONTINUITY_CORE REVISION={rev} UPDATED={updated} '
-              f'DO_NOT_DIRECT_WRITE: all changes must go through chaincore.py submit -->\n')
+    header = (f'<!-- {HEADER_MARKER} REVISION={rev} UPDATED={updated} '
+              f'DO_NOT_DIRECT_WRITE: all changes must go through authority-chain submit -->\n')
     return header + body
 
 
@@ -65,7 +70,7 @@ def _verify_projection(content, expect_rev=None):
     if not content:
         return False, 'content is empty'
     head = content.split('\n', 1)[0]
-    if not head.startswith('<!-- GENERATED_FROM_CONTINUITY_CORE REVISION='):
+    if not head.startswith('<!-- %s REVISION=' % HEADER_MARKER):
         return False, 'bad header prefix: %r' % head[:80]
     for need in ('REVISION=', 'UPDATED=', 'DO_NOT_DIRECT_WRITE'):
         if need not in head:
@@ -238,7 +243,7 @@ def verify_projections():
         except Exception:
             canonical_content = value_json
         disk = p.read_text(encoding='utf-8', errors='replace')
-        disk_body = re.sub(r'^<!-- GENERATED_FROM_CONTINUITY_CORE.*?-->\n', '', disk, count=1, flags=re.S)
+        disk_body = re.sub(r'^<!-- %s.*?-->\n' % HEADER_MARKER, '', disk, count=1, flags=re.S)
         if canonical_content.rstrip('\r\n') != disk_body.rstrip('\r\n'):
             mismatches.append({'doc': doc_key, 'reason': 'CONTENT_MISMATCH',
                                'path': str(p),

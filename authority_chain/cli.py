@@ -11,7 +11,7 @@ from .verify import verify_chain
 
 
 def main():
-    ap = argparse.ArgumentParser(prog='continuity_core')
+    ap = argparse.ArgumentParser(prog='authority-chain')
     sub = ap.add_subparsers(dest='cmd')
     sub.add_parser('bootstrap')
     r = sub.add_parser('register'); r.add_argument('writer_id'); r.add_argument('surface'); r.add_argument('role'); r.add_argument('tier')

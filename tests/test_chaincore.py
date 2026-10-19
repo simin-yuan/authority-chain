@@ -265,7 +265,7 @@ def test_bootstrapped_text_renders_without_encoding_artifacts(agents_doc):
     with open(cc.projection_path('AGENTS'), encoding='utf-8', newline='') as fh:
         rendered = fh.read()
     header, body = rendered.split('\n', 1)
-    assert header.startswith('<!-- GENERATED_FROM_CONTINUITY_CORE REVISION=2 ')
+    assert header.startswith('<!-- GENERATED_FROM_AUTHORITY_CHAIN REVISION=2 ')
     assert body == '# A\n\nrule B'
 
 
