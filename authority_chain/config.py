@@ -1,4 +1,4 @@
-"""Host configuration for chaincore.
+"""Host configuration for authority-chain.
 
 Everything machine-specific lives here instead of inside the core modules: the data
 directory, the document registry with its tiers, length caps, and the two optional
@@ -9,15 +9,22 @@ reads its paths from the environment cannot be inspected, cannot be diffed, and 
 run two configurations in parallel (both runs share one process environment). A JSON
 file is a single object that can be copied, reviewed, and shipped as an example.
 
-Resolution order
-----------------
-1. ``CHAIN_CONFIG``       - explicit path to a JSON file
-2. ``chaincore.json``     - in BASE_DIR, the directory that contains the package
-                            (the repository root in a checkout; git-ignored)
-3. built-in defaults      - documented below
+Resolution order for the data directory
+---------------------------------------
+1. ``data_root`` in the config file: ``CHAIN_CONFIG`` if set, otherwise
+   ``chaincore.json`` next to the package                     - the deployment's answer
+2. ``CHAIN_DATA_ROOT``                                        - process-level override
+3. a checkout (the directory holding the package also holds ``pyproject.toml``):
+   ``<checkout>/data``, which is git-ignored
+4. everywhere else (a wheel, ``pip install git+...``): the per-user directory -
+   ``%LOCALAPPDATA%\\authority-chain`` on Windows,
+   ``$XDG_DATA_HOME/authority-chain`` or ``~/.local/share/authority-chain`` otherwise
 
-Environment overrides (tests and CI only):
-  ``CHAIN_DATA_ROOT``   data directory (database, logs, projections)
+Step 4 exists because an installed copy used to write its ledger inside site-packages,
+which is deleted on uninstall and replaced on upgrade: the record of who changed what
+would disappear with the package that produced it.
+
+Other environment overrides (tests and CI only):
   ``CHAIN_HOME``        root of the document tree
 
 Safety: a missing or unparsable file never raises at import time. A ledger that
@@ -33,10 +40,11 @@ import os
 import sys
 from pathlib import Path
 
-# The directory that holds the package: in a checkout, the repository root, so the default
-# data directory and chaincore.json stay where they were before the module split.
-# An installed copy should set CHAIN_CONFIG or CHAIN_DATA_ROOT instead.
-BASE_DIR = Path(__file__).resolve().parent.parent
+# The directory that holds the package: in a checkout, the repository root.
+PACKAGE_DIR = Path(__file__).resolve().parent
+BASE_DIR = PACKAGE_DIR.parent
+
+APP_DIR_NAME = 'authority-chain'
 
 # Three neutral documents, one per tier. Nothing here is specific to a deployment;
 # replace them in chaincore.json with the documents you actually govern.
@@ -79,8 +87,43 @@ def _path(value, default):
     return Path(value).expanduser().resolve() if value else default
 
 
-DATA_ROOT = _path(os.environ.get('CHAIN_DATA_ROOT') or _CFG.get('data_root'),
-                  (BASE_DIR / 'data').resolve())
+def is_checkout(base_dir=None):
+    """True when the package was imported from a source checkout (editable install).
+
+    The test is the build file next to the package: an editable install points at the
+    repository, a wheel points at site-packages, and site-packages has no pyproject.toml.
+    """
+    return (Path(BASE_DIR if base_dir is None else base_dir) / 'pyproject.toml').is_file()
+
+
+def user_data_dir(environ=None, platform=None):
+    """Per-user data directory, standard library only, no per-platform dependency."""
+    env = os.environ if environ is None else environ
+    plat = sys.platform if platform is None else platform
+    if plat.startswith('win'):
+        base = env.get('LOCALAPPDATA') or str(Path.home() / 'AppData' / 'Local')
+    else:
+        base = env.get('XDG_DATA_HOME') or str(Path.home() / '.local' / 'share')
+    return Path(base).expanduser() / APP_DIR_NAME
+
+
+def default_data_root(base_dir=None, environ=None, platform=None):
+    """The data directory when nobody configured one.
+
+    A checkout keeps its ledger inside the tree (git-ignored, one per checkout, easy to
+    delete). Anything installed keeps it in the user's data directory, because
+    site-packages is replaced on upgrade.
+    """
+    if is_checkout(base_dir):
+        return Path(BASE_DIR if base_dir is None else base_dir) / 'data'
+    return user_data_dir(environ, platform)
+
+
+# The configured file wins over the environment: pointing CHAIN_CONFIG at a file is the
+# deployment's own, reviewable answer, and a stray CHAIN_DATA_ROOT in a shell (CI, a
+# test that forgot to clean up) must not silently move the ledger somewhere else.
+DATA_ROOT = _path(_CFG.get('data_root') or os.environ.get('CHAIN_DATA_ROOT'),
+                  default_data_root().resolve())
 # The database, the logs and the projections live under one research root; keeping the
 # name explicit means a deployment can mount that directory read-write and nothing else.
 RESEARCH_ROOT = DATA_ROOT / 'ledger'
