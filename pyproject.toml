@@ -18,6 +18,7 @@ classifiers = [
 ]
 
 [project.urls]
+ORCID = "https://orcid.org/0009-0002-6843-3390"
 Homepage = "https://github.com/simin-yuan/authority-chain"
 
 [project.optional-dependencies]
