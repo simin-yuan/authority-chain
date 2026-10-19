@@ -714,7 +714,12 @@ def apply_patch(old_json, patch, event_type):
 
 
 def bootstrap(force=False):
-    """First import: existing documents -> INIT events (revision 1). Idempotent."""
+    """First import: existing documents -> INIT events (revision 1). Idempotent.
+
+    A document that does not exist is not an error and not news: a first run commonly has
+    none of them yet, and the command would print three SKIP lines that look like trouble
+    while nothing was wrong. They are simply not imported; the return value lists what was.
+    """
     conn = get_conn(); init_schema(conn)
     imported = []
     for doc_key, path in DOC_TO_PATH.items():
@@ -722,7 +727,6 @@ def bootstrap(force=False):
             continue
         p = Path(path)
         if not p.exists():
-            print(f'  SKIP {doc_key}: file not found {path}')
             continue
         content = p.read_text(encoding='utf-8', errors='replace')
         seq = next_sequence(conn); ts = now_iso()

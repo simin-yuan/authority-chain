@@ -47,6 +47,15 @@ Small on purpose: one package, the Python standard library and SQLite, no servic
 
 ## Quick start
 
+Get the code:
+
+```bash
+git clone https://github.com/simin-yuan/authority-chain
+cd authority-chain
+```
+
+### Run it
+
 In real use the agent runtime sets `AGENT_SESSION_ID`; the model never chooses it. For a
 first run, set it by hand:
 
@@ -102,17 +111,10 @@ file outranks `CHAIN_DATA_ROOT`, which outranks both.
 
 `chaincore.py` and `config.py` at the top level re-export the package for single-file use.
 
-## Hermes agent integration
+## Integration points
 
-Hermes exposes a plugin hook API. Resolve paths through the runtime rather than hardcoding them:
-
-```python
-from hermes_constants import get_hermes_home     # authoritative home for the running install
-home = get_hermes_home()
-```
-
-The optional integration points in `chaincore.json` are a policy module (decides what to refuse)
-and a post-write hook (called after a write lands). Both default to `None`, so the core package
+Two optional hooks in `chaincore.json`: a policy module (decides what to refuse) and a
+post-write hook (called after a write lands). Both default to `None`, so the core package
 imports nothing from the host.
 
 ## Tests

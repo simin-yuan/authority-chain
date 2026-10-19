@@ -41,7 +41,7 @@ jobs:
           mkdir -p "$work/home"
           # A fresh copy of the tree, so the default data root ($work/src/data) starts empty.
           git archive --format=tar HEAD | (mkdir -p "$work/src" && tar -x -C "$work/src")
-          awk '/^## Quick start/{q=1} q&&/^```bash$/{f=1;next} f&&/^```$/{exit} f' README.md > "$work/quickstart.sh"
+          awk '/^### Run it$/{q=1} q&&/^```bash$/{f=1;next} f&&/^```$/{exit} f' README.md > "$work/quickstart.sh"
           test -s "$work/quickstart.sh"
           cat "$work/quickstart.sh"
           cd "$work/src"
