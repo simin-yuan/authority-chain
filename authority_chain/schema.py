@@ -5,7 +5,7 @@ import sqlite3
 from .config import RESEARCH_ROOT
 
 
-DB_PATH = RESEARCH_ROOT / 'continuity' / 'continuity.db'
+DB_PATH = RESEARCH_ROOT / 'authority-chain' / 'authority-chain.db'
 
 
 def now_iso():

@@ -27,19 +27,19 @@ except Exception:  # noqa: BLE001
 
 # Concurrent-write rejection log (events.sequence UNIQUE collision).
 # Same JSONL shape as length_gate.log; used to prove "one accepted, one rejected, both logged".
-SUBMIT_REJECT_LOG = RESEARCH_ROOT / 'continuity' / 'submit_reject.log'
+SUBMIT_REJECT_LOG = RESEARCH_ROOT / 'authority-chain' / 'submit_reject.log'
 
 
 # -- Gate switch: the switch is a state file, not an environment variable. --------------
 # An env var only affects the process that set it, and independent writers each start
 # their own process - an env-only switch would silently be a no-op.
 # File first (the only cross-process form); env only for local debugging.
-GATE_STATE_DIR = Path(os.environ.get('CHAIN_GATE_DIR') or (RESEARCH_ROOT / 'continuity'))
+GATE_STATE_DIR = Path(os.environ.get('CHAIN_GATE_DIR') or (RESEARCH_ROOT / 'authority-chain'))
 try:
     if not GATE_STATE_DIR.exists():
-        GATE_STATE_DIR = RESEARCH_ROOT / 'continuity'
+        GATE_STATE_DIR = RESEARCH_ROOT / 'authority-chain'
 except Exception:
-    GATE_STATE_DIR = RESEARCH_ROOT / 'continuity'
+    GATE_STATE_DIR = RESEARCH_ROOT / 'authority-chain'
 GATE_ENFORCE_FLAG = GATE_STATE_DIR / 'GATE_ENFORCE.on'
 GATE_OBSERVE_MARKER = GATE_STATE_DIR / 'GATE_OBSERVE_SINCE.json'
 
