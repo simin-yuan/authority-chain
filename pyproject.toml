@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Append-only, hash-chained ledger that gates who may change an agent's rules, against which revision."
 readme = "README.md"
 license = {text = "Apache-2.0"}
-authors = [{name = "Simin (Simon) Yuan"}]
+authors = [{name = "Simin Yuan"}]
 requires-python = ">=3.9"
 dependencies = []
 classifiers = [
