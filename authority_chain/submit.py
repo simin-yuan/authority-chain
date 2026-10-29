@@ -483,7 +483,7 @@ def submit_event(writer_id, doc_key, patch, base_revision=None, event_type='PATC
             else:
                 _ok, _info = policy_rules.user_message(_smi, state_db=str(SIGNER_DB or ''))
                 if not _ok:
-                    _gate_err = ('VERDICT_SOURCE_UNVERIFIED', f'{_info}（source_msg_id={_smi}）')
+                    _gate_err = ('VERDICT_SOURCE_UNVERIFIED', f'{_info} (source_msg_id={_smi})')
                 else:
                     _qok, _why = policy_rules.validate_quote(_quote, _info['content'], doc_key)
                     _ev_payload = policy_rules.evidence_payload(_smi, 'quote_ok' if _qok else _why, _qok)
