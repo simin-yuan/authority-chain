@@ -147,3 +147,6 @@ accepts a limitation instead of hiding it.
 Apache-2.0. See `LICENSE` and `NOTICE`.
 
 © 2026 Simin Yuan — ORCID [0009-0002-6843-3390](https://orcid.org/0009-0002-6843-3390) · [github.com/simin-yuan](https://github.com/simin-yuan).
+---
+
+Part of the agent reliability toolkit → [agent-faultbench](https://github.com/simin-yuan/agent-faultbench)
